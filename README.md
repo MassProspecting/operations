@@ -10,8 +10,14 @@ Perform this task daily, until we develop ["prioritize newer" parameter to the r
 ```sql
 -- Cancel old pending jobs at the starting of a new day.
 --
-update "enrichment" set status=5 where status=0;
-update "outreach" set status=5 where status=0;
+update "enrichment" set status=5 where status=0 and id in (
+	select e.id
+	--select count(*)
+	from "enrichment" e
+	join "lead" l on l.id=e.id_lead
+	where e.status=0
+	and e.create_time < current_timestamp - interval '12 hours'
+);
 ```
 
 ### Cancel old failed jobs at the starting of a new day.
