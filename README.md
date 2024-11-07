@@ -75,6 +75,21 @@ and (
 order by e.done_time desc
 ```
 
+### Monitoring Enrichment Performance
+
+Use this query until the `timeline` is working perfectly.
+
+```sql
+-- Enricment Performance
+-- 
+select e.update_time, e.hit, i.id_rule
+from enrichment e 
+left join rule_instance i on i.id=e.id_rule_instance 
+where e.status=2 
+and e.update_time>current_timestamp - interval '30 minutes' 
+order by e.update_time desc
+```
+
 ### Verified emails to export to Instanctly.
 
 _pending_
