@@ -2,6 +2,33 @@
 
 ## 1. Running Agency
 
+### Draining Old Jobs
+
+```sql
+delete from event_job;
+delete from job_screenshot;
+
+delete from enrichment_screenshot;
+delete from enrichment_snapshot;
+
+delete from inboxcheck where id in (
+	select id
+	--select count(*)
+	from inboxcheck 
+	where create_time < current_timestamp - interval '12 hours'
+	and status <> 0
+	limit 100000
+);
+
+delete from connectioncheck where id in (
+	select id
+	--select count(*)
+	from connectioncheck
+	where create_time < current_timestamp - interval '12 hours'
+	and status <> 0
+	limit 10000
+);
+```
 
 ### Cancel old pending jobs at the starting of a new day.
 
