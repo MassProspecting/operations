@@ -126,3 +126,42 @@ order by e.hit, e.update_time desc
 ### Verified emails to export to Instanctly.
 
 _pending_
+
+
+## 2. Development
+
+1. I want to connect a remote postgresql server and generate a backup in my local computer using an SQL sentence
+
+```
+pg_dump -h s01.massprospecting.com -p 5432 -U blackstack -W blackstack > backup.sql
+```
+
+2. Restore the database in your local computer.
+
+```
+psql -U blackstack -d mass.slave -f ./backup.sql
+```
+
+**Note:** For running the command above, you have to 
+
+1. edit the file `/etc/postgresql/<version>/main/pg_hba.conf`;
+2. replace the line 
+
+```
+local   all             all                                     peer
+``` 
+
+by 
+
+```
+local   all             all                                     md5
+```
+
+and
+
+3. restart PostgreSQL
+
+```
+sudo systemctl restart postgresql
+```
+
