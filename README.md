@@ -84,7 +84,7 @@ select '
 		'''||cast(e.id_lead as varchar(500))||''',
 		''d94f69a1-1ef1-417c-bac2-ff0f2921f1f8'' -- target
 	);	
-', e.done_time, l.first_name, l.last_name, l.job_title, h."name", y.name
+', l.create_time, l.first_name, l.last_name, l.job_title, h."name", y.name
 from enrichment e
 join rule_instance i on (i.id=e.id_rule_instance and i.id_rule='0968b2ee-3998-49e4-b2fc-b3ca28dbe5e8')
 join "lead" l on l.id=e.id_lead
@@ -96,16 +96,19 @@ where l.id not in (
 	from lead_tag x
 	where x.id_tag='d94f69a1-1ef1-417c-bac2-ff0f2921f1f8' -- target
 )
-and e.done_time > current_timestamp - interval '24 hours' -- prioritize recent enrichments 
+and l.create_time > current_timestamp - interval '24 hours' -- prioritize recent enrichments 
 and y.name = 'United States'
 and h.min >= 4
 and (
+	l.job_title ilike '%expert%' or
+	l.job_title ilike '%help%' or
 	l.job_title ilike '%owner%' or
 	l.job_title ilike '%CEO%' or
 	l.job_title ilike '%founder%' or
 	l.job_title ilike '%president%'
 )
-order by e.done_time desc
+--order by h.min desc, l.create_time desc
+order by l.create_time desc
 ```
 
 ### Monitoring Enrichment Performance
