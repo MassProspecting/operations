@@ -64,6 +64,10 @@ update "outreach" set status=5 where status=3;
 ```sql
 -- Cancel jobs that started time ago and never finished.
 --
+update "job" set status=0 where status=1 and update_time<current_timestamp - interval '45 minutes';
+update inboxcheck set status=0 where status=1 and update_time<current_timestamp - interval '45 minutes';
+update connectioncheck set status=0 where status=1 and update_time<current_timestamp - interval '45 minutes';
+update "job" set status=0 where status=1 and update_time<current_timestamp - interval '45 minutes';
 update "enrichment" set status=0 where status=1 and update_time<current_timestamp - interval '45 minutes';
 update "outreach" set status=0 where status=1 and update_time<current_timestamp - interval '45 minutes';
 ```
