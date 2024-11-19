@@ -166,6 +166,8 @@ order by o.create_time desc
 
 [spreadhseet_formula_1](spreadsheet_formula_1.txt)
 
+[spreadhseet_formula_2](spreadsheet_formula_2.txt)
+
 ### Draining Old Jobs
 
 ```sql
