@@ -9,7 +9,7 @@
 ```sql
 SELECT distinct
 	l.id,
-	t.name as tag_name,
+	--t.name as tag_name,
     l.first_name, 
     l.last_name,
     l.job_title,
