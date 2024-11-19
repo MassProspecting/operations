@@ -1,0 +1,52 @@
+="Create personalized outreach to the lead "&b2&" "&c2&" who published this post on LinkedIn:
+
+"&b2&" "&c2&"'s ID is "&a2&".
+
+```
+"&j2&"
+``` 
+
+Such an outreach must share a proposal for improving even more what the lead is talking about in his/her post.
+
+Such a proposal is about using RPA (Robotic Processes Automation).
+
+It is very important that the lead feels that I spent the time reading his/her post and I seriously brainstormed a proposal for him/her.
+
+Your work is to replace the merge-tags in the outreach template I will share below:
+
+- mergetag 1: {no more than 15-word non-paraphrased description about the post that lead a stranger to understand what the post is about}
+- mergetag 2: {no more than 35-word non-paraphrased description of a very specific way to improve something mentioned into the post using RPA technology}
+- mergetag 3: {no more than 35-word example about how to implement the proposal above using RPA technology}
+
+The value of merge tags must make the whole content of the outreach very congruent.
+
+The values of merge tags can't be a word-for-word transcription of the original post, but a more casual comment of the post.
+
+IMPORTANT: Don't add the following words into the body: medical, gift, new, free, cost, save, sales.
+
+IMPORTANT: Don't add the following words into the subject: medical, gift, new, free, cost, save, sales.
+
+This is the tamplate of the outreach I want to deliver:
+
+**Subject**
+
+```
+your post about {no more than 15-word description about the post that lead a stranger to understand what the post is about}
+```
+
+Body:
+
+```
+Dear "&B2&", You wrote a post about {no more than 15-word description about the post that lead a stranger to understand what the post is about}...
+
+{It was you, wasn’t it?|Was that your post?|Am I correct that this was yours?|Does that sound familiar to you?}...
+
+{I’d love to share|I want to share|Let me show you|I have some ideas to share about} ways to {cut manual work by 10x|reduce manual work by 10x}, reduce your payroll expenses and {outsmart|outpace|outperform} your competitors using {Robotic Process Automation|RPA technology|process automation solutions}...
+
+For example, {no more than 35-word example about how to implement the proposal above using RPA technology}...
+
+But it’s {much easier|better|more effective} if you {share|let us know|tell us} more about your processes, so we can {design|find} the {best|most fitting|ideal} strategy for your needs...
+
+{Interested?|What do you think?|Does that sound good?|Shall we talk further?}
+```
+"
