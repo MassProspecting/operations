@@ -39,6 +39,7 @@ JOIN LATERAL (
     SELECT e.content
     FROM "event" e
     WHERE e.id_lead = l.id
+    AND e.create_time > current_timestamp - interval '7 day' -- recent events only
 /*
     AND (
         e."content" ILIKE '%boost%' OR
@@ -116,6 +117,7 @@ JOIN LATERAL (
     SELECT e.content
     FROM "event" e
     WHERE e.id_lead = l.id
+    AND e.create_time > current_timestamp - interval '7 day' -- recent events only
     AND (
         e."content" ILIKE '%boost%' OR
         e."content" ILIKE '%operations%' OR
