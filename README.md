@@ -79,7 +79,7 @@ ORDER BY l.first_name, l.last_name, l.job_title;
 #### Query to send LinkedIn message to LinkedIn accepters
 
 ```sql
-SELECT distinct
+SELECT DISTINCT
     l.id,
     l.first_name, 
     l.last_name,
@@ -117,27 +117,32 @@ JOIN LATERAL (
     SELECT e.content
     FROM "event" e
     WHERE e.id_lead = l.id
-    AND e.create_time > current_timestamp - interval '7 day' -- recent events only
+    --AND e.create_time > current_timestamp - interval '7 day' -- recent events only
+    /*
     AND (
         e."content" ILIKE '%boost%' OR
         e."content" ILIKE '%operations%' OR
         e."content" ILIKE '%optimization%' OR
         e."content" ILIKE '%efficiency%'
     )
+    */
     ORDER BY e.create_time DESC
     LIMIT 1
 ) e ON TRUE
 WHERE l.email IS NOT NULL
 --AND l.email_verification_result = 2
 and l.linkedin is not null
-AND h.min > 10
+--AND h.min > 10
 AND y.name ILIKE 'United States'
+/*
 AND (
     l.job_title ILIKE '%owner%' OR
-    l.job_title ILIKE '%founder%' or
+    l.job_title ILIKE '%founder%' OR
     l.job_title ILIKE '%CEO%' OR
     l.job_title ILIKE '%president%'
 )
+*/
+-- no more than one outgoing message has been delivered to this lead
 AND (
 	select count(*)
 	from "outreach" o
@@ -145,8 +150,7 @@ AND (
 	and o.direction = 0
 	and o.id_outreach_type = '0b0110b9-cbef-4c22-b4a8-3a0cfdfbe863' -- LinkedIn_DirectMessage 
 	and o.status in (0,2) -- pending or performed
-) < 2
-
+) < 1
   
 ORDER BY l.first_name, l.last_name, l.job_title;
 ```
