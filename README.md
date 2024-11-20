@@ -53,7 +53,7 @@ JOIN LATERAL (
 ) e ON TRUE
 WHERE l.email IS NOT NULL
   AND l.email_verification_result = 2
-  AND h.min > 10
+  --AND h.min > 10
   AND y.name ILIKE 'United States'
   AND (
     l.job_title ILIKE '%owner%' OR
@@ -69,7 +69,7 @@ AND (
 	and o.direction = 0
 	and o.id_outreach_type = '6e48cb7c-3aeb-4adf-b06f-7d88f5f778ee' -- GMail_DirectMessage 
 	and o.status in (0,2) -- pending or performed
-) < 2
+) < 1
 
 --and l.id='7369a648-bd0a-4e96-80dd-897c412f997a'
   
