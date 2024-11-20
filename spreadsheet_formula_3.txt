@@ -16,7 +16,6 @@ Your work is to replace the merge-tags in the outreach template I will share bel
 
 - mergetag 1: {no more than 15-word non-paraphrased description about the post that lead a stranger to understand what the post is about}
 - mergetag 2: {no more than 35-word non-paraphrased description about the post that lead a stranger to understand what the post is about}
-- mergetag 3: {no more than 35-word non-paraphrased description of a very specific way for automating the client acquisition tasks and requirements processing of the lead's business using BPA technology}
 
 The value of merge tags must make the whole content of the outreach very congruent.
 
