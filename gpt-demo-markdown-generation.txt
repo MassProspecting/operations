@@ -1,0 +1,23 @@
+This is a javascript library called guid.min.js
+
+**guid.min.js.js:**
+```javascript
+---
+```
+
+This is an HTML demo page:
+
+**demo.html:**
+```html
+...
+```
+
+Can you please write a markdown document with the following titles:
+
+- First, explain in 5-line about what is the guid.min.js.js library.
+1. ...
+2. ...
+...
+...
+
+One more thing... I need one `.md` file that I can download.
