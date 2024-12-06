@@ -1,0 +1,609 @@
+The name of the file must be `05-profile.md`
+
+```ruby
+module Mass
+    class Profile < Sequel::Model(:profile)
+        include Mass::Constants
+        extend Mass::Access # make its methods as class methods
+        extend Mass::MTA # make its methods as class methods
+        extend Mass::State # make its methods as class methods
+        extend BlackStack::Status # make its methods as class methods
+        #extend Mass::Body # make its methods as class methods
+        #extend BlackStack::Palette # make its methods as class methods
+        extend BlackStack::Storage # make its methods as class methods
+        extend BlackStack::Validation # make its methods as class methods
+        extend BlackStack::InsertUpdate # make its methods as class methods
+        include BlackStack::Serialize # make its methods as instance methods
+        extend BlackStack::DomainProtocol
+
+        many_to_one :account, :class => 'BlackStack::MySaaS::Account', :key => :id_account
+        many_to_one :user, :class => 'BlackStack::MySaaS::User', :key => :id_user
+        many_to_one :profile_type, :class => 'Mass::ProfileType', :key => :id_profile_type
+        many_to_one :tag, :class => 'Mass::Tag', :key => :id_tag
+
+        # return true if the access type of the profile is :rpa
+        # else, return false
+        def rpa?
+            self.profile_type.rpa?
+        end
+
+        # tracking links
+        def tracking_url
+            ret = nil
+            if self.allow_tracking_domain
+                ret = "#{self.tracking_protocol}://#{self.tracking_domain}:#{tracking_port}"
+            else
+                ret = Mass.tracking_url
+            end
+            ret 
+        end 
+
+        # Creating records in the connectioncheck table, for each profile that is not deleted and is not :idle.
+        # Creating records in the inboxcheck table, for each profile that is not deleted and is not :idle.
+        def self.plan(logger:nil)
+            l = logger || BlackStack::DummyLogger.new(nil)
+            l.log "Starting profiles planning.".blue
+
+            # iterate list of active profiles to create connectioncheck and inboxcheck records
+            Mass::Profile.where(
+                Sequel.lit("
+                    state <> #{self.state_code(:idle)} AND
+                    delete_time IS NULL
+                ")
+            ).each { |p|
+                l.logs "Planning connectioncheck for profile #{p.name.blue}... "
+                b = true
+                # if there are pending jobs for this source, then skip it.
+                n = Mass::ConnectionCheck.where(
+                    Sequel::lit("
+                        id_profile='#{p.id}' AND
+                        status=#{status_code(:pending)}
+                    ")
+                ).count
+                if n > 0
+                    l.logf 'skipped.'.yellow + " (There are #{n} pending connectionchecks for this profile)"
+                    b = false
+                end
+                # if the latest job for this account and this source was processed less than the interval of the source, then skipt it.
+                if Mass::ConnectionCheck.where(
+                    Sequel::lit("
+                        id_profile='#{p.id}' AND
+                        status<>#{status_code(:pending)} AND
+                        COALESCE(done_time, CAST('1900-01-01' AS TIMESTAMP)) > CAST('#{now}' AS TIMESTAMP) - INTERVAL '#{p.check_connections_interval.to_s} seconds'
+                    ")
+                ).first
+                    l.logf 'recent connectioncheck'.yellow + " (There are recent connectionchecks for this profile)"
+                    b = false
+                end # if BlackStack::MassProspecting::Job.where(
+                # create a new job for this source
+                if b
+                    j = Mass::ConnectionCheck.new
+                    j.id = guid
+                    j.id_account = p.id_account
+                    j.create_time = now
+                    j.id_profile = p.id
+                    j.status = status_code(:pending)
+                    j.save
+                    l.logf 'done.'.green
+                end
+
+                l.logs "Planning inboxcheck for profile #{p.name.blue}... "
+                b = true
+                # if there are pending jobs for this source, then skip it.
+                n = Mass::InboxCheck.where(
+                    Sequel::lit("
+                        id_profile='#{p.id}' AND
+                        status=#{status_code(:pending)}
+                    ")
+                ).count
+                if n > 0
+                    l.logf 'skipped.'.yellow + " (There are #{n} pending inboxchecks for this profile)"
+                    b = false
+                end
+                # if the latest job for this account and this source was processed less than the interval of the source, then skipt it.
+                if Mass::InboxCheck.where(
+                    Sequel::lit("
+                        id_profile='#{p.id}' AND
+                        status<>#{status_code(:pending)} AND
+                        COALESCE(done_time, CAST('1900-01-01' AS TIMESTAMP)) > CAST('#{now}' AS TIMESTAMP) - INTERVAL '#{p.check_inbox_interval.to_s} seconds'
+                    ")
+                ).first
+                    l.logf 'recent inboxcheck'.yellow + " (There are recent inboxchecks for this profile)"
+                    b = false
+                end # if BlackStack::MassProspecting::Job.where(
+                # create a new job for this source
+                if b
+                    j = Mass::InboxCheck.new
+                    j.id = guid
+                    j.id_account = p.id_account
+                    j.create_time = now
+                    j.id_profile = p.id
+                    j.status = status_code(:pending)
+                    j.save
+                    l.logf 'done.'.green
+                end
+            }
+        end # def self.plan
+
+        # return a Sequel dataset, based on some filters.
+        # this method is used by the API to get the data from the database remotely
+        #
+        # Supported filters:
+        # - name: string. Name of the profile. Key sensitive. Partial match.
+        # - profile_type: string. Name of the profile type. Key sensitive.
+        # - tag: string. Name of the tag. Key sensitive.
+        # - state: string. State of the profile. Key sensitive. Allowed values are: idle, starting, scraping_inbox, scraping_outbox, stopping, error.
+        # - hostname: string. Hostname of the profile. Key sensitive. Partial match.
+        # 
+        def self.list(account, filters:)
+            err = key_errors(filters, allowed_keys: [:profile_type, :tag, :name, :state, :hostname])
+            ds = self.base_list(account, filters: filters)
+            filters.each { |k, v|
+                if k.to_s == 'profile_type'
+                    pt = ProfileType.where(:name => v, :id_account => account.id, :delete_time => nil).first
+                    if pt.nil?
+                        err << "Unknown profile_type #{v.to_s}."
+                    else
+                        ds = ds.where(:id_profile_type => arr.map { |pt| pt.id })
+                    end
+                elsif k.to_s == 'tag'
+                    tag = Mass::Tag.where(Sequel.ilike(:name, "%#{v.to_s}%"), :delete_time => nil, :id_account => account.id).first
+                    if tag.nil?
+                        err << "Unknown tag #{v.to_s}."
+                    else
+                        ds = ds.where(:id_tag => tag.id)
+                    end
+                elsif k.to_s == 'name'
+                    ds = ds.where(Sequel.ilike(:name, "%#{v.to_s}%"))
+                elsif k.to_s == 'state'
+                    ds = ds.where(:state => self.state_code(v.to_s))
+                elsif k.to_s == 'hostname'
+                    ds = ds.where(Sequel.ilike(:hostname, "%#{v.to_s}%"))
+                else
+                    err << "Unknown filter #{k.to_s} for #{self.name}.list method."
+                end
+            }
+            raise err.join("\n") if err.size > 0
+            return ds
+        end
+
+        # return an array of error messages
+        def self.errors(h={})
+            ret = []
+            ret += self.key_errors(h, allowed_keys: [
+                :id_account,
+                :id_user,
+                :name,
+                :profile_type, 
+                :tag,
+                :state,
+                :hostname,
+                :picture_url, :picture_url_dropbox,
+                # rpa parameters
+                :ads_power_id,
+                # api parameters
+                :api_key, 
+                # tracking domain parameters
+                :allow_tracking_domain,
+                :tracking_domain,
+                :tracking_protocol,
+                :tracking_port,
+                # mta parameters
+                :smtp_address,
+                :smtp_port,
+                :imap_port,
+                :imap_address,
+                :authentication,
+                :enable_starttls_auto,
+                :openssl_verify_mode,
+                :inbox_label,
+                :spam_label,
+                :search_all_wildcard,
+                :imap_inbox_last_id,
+                :imap_spam_last_id,
+                :smtp_username,
+                :smtp_password,
+                :imap_username,
+                :imap_password,
+                :imap_allowed,
+                # quotas
+                :check_connections_interval,
+                :check_inbox_interval,
+                :jobs_interval,
+                :max_daily_jobs,
+                :outreach_interval,
+                :max_daily_processed_outreaches,
+                :max_daily_aborted_outreaches,
+                :enrichment_interval,
+                :max_daily_processed_enrichments,
+                :max_daily_aborted_enrichments,
+                # dummy parameters, only used by the to_h method
+                :profile_type_desc,
+                # scraping options
+                :allow_browser_to_download_multiple_files,
+                :browser_width,
+                :browser_height,
+
+                # users like to have a link to the live account of the profiles
+                :linkedin,
+                :facebook,
+
+                # dummy parameter.
+                # accounts leasing parameters, at the sub-account side
+                # even if this field is in the database, the end-user cannot setup this flag.
+                :leased,
+                # dummy parameter.
+                # RPA profiles submited by users are under revision, because we have to run the "compatibility checklist"
+                :under_revision,
+
+                # dummy parameters, not stored in the database by returned by to_h method
+                :openssl_verify_mode_code,
+            ])
+            ret += self.naming_errors(h)
+            ret += self.ownership_errors(h) 
+            ret += self.url_errors(h, keys: [:picture_url, :picture_url_dropbox])
+            ret += self.mandatory_errors(h, keys: [
+                :profile_type, 
+                :hostname,
+                #:state, # default is 0 (:idle)
+            ])
+
+            ret += self.boolean_errors(h, keys: [
+                :enable_starttls_auto,
+                :imap_allowed,
+                :allow_browser_to_download_multiple_files,
+                :allow_tracking_domain,
+                :leased,
+            ])
+
+            ret += self.linkedin_errors(h, keys: [:linkedin])
+            ret += self.facebook_errors(h, keys: [:facebook])
+
+            ret += self.string_errors(h, keys: [
+                :hostname,
+                :ads_power_id,
+                :api_key,
+                :smtp_address,
+                :imap_address,
+                :inbox_label,
+                :spam_label,
+                :search_all_wildcard,
+                :smtp_username,
+                :smtp_password,
+                :imap_username,
+                :imap_password,
+            ])
+            
+            ret += self.int_errors(h, min: 0, max: 1920, keys: [
+                :browser_width,
+                :browser_height,
+            ])
+
+            ret += self.int_errors(h, min: 1, max: MAX_PORT_NUMBER, keys: [
+                :smtp_port,
+                :imap_port,
+                :tracking_port,
+            ])
+
+            ret += self.int_errors(h, min: -2, max: MAX_INT, keys: [
+                :check_connections_interval,
+                :check_inbox_interval,
+                :jobs_interval,
+                :max_daily_jobs,
+                :outreach_interval,
+                :max_daily_processed_outreaches,
+                :max_daily_aborted_outreaches,
+                :enrichment_interval,
+                :max_daily_processed_enrichments,
+                :max_daily_aborted_enrichments,
+            ])
+            
+            ret << "Unknown profile_type #{h['profile_type'].to_s}." if h['profile_type'] && ProfileType.where(:name => h['profile_type'].to_s, :id_account => h['id_account'], :delete_time => nil).first.nil?
+            ret << "Unknown tag (#{h['tag'].to_s})." if h['tag'] && Tag.where(:name => h['tag'].to_s, :id_account => h['id_account'], :delete_time => nil).first.nil?
+            
+            pt = ProfileType.where(:name => h['profile_type'].to_s, :id_account => h['id_account'], :delete_time => nil).first
+            ret << "Unknown profile_type #{h['profile_type'].to_s}." if h['profile_type'] && pt.nil?
+
+            if pt
+                rpa_exclusive_states = [:starting, :stopping]
+                ret << "states #{rpa_exclusive.join(',')} are allowed if profile_type.access is :rpa only." if h['state'] && accesses[pt.access].to_sym != :rpa && rpa_exclusive_states.include?(state_code(h['state']))
+                
+                ret << "Unknown state (#{h['state']}); allowed values are #{states.join(', ')}." if h['state'] && state_code(h['state']).nil? && accesses[pt.access].to_sym == :rpa
+
+                ret << "allow_browser_to_download_multiple_files is allowed if profile_type.access is :rpa only." if h['allow_browser_to_download_multiple_files'] && accesses[pt.access].to_sym != :rpa
+                ret << "browser_width is allowed if profile_type.access is :rpa only." if h['browser_width'] && accesses[pt.access].to_sym != :rpa
+                ret << "browser_height is allowed if profile_type.access is :rpa only." if h['browser_height'] && accesses[pt.access].to_sym != :rpa
+
+                ret << "ads_power_id is allowed if profile_type.access is :rpa only." if h['ads_power_id'] && accesses[pt.access].to_sym != :rpa
+                ret << "ads_power_id is required if profile_type.access is :rpa." if h['ads_power_id'].to_s.empty? && accesses[pt.access].to_sym == :rpa
+
+                ret << "api_key is allowed if profile_type.access is :api only." if h['api_key'] && accesses[pt.access].to_sym != :api
+                ret << "api_key is required if profile_type.access is :api." if h['api_key'].to_s.empty? && accesses[pt.access].to_sym == :api
+
+                ret << "allow_tracking_domain is allowed if profile_type.access is :mta only." if h['allow_tracking_domain'] && accesses[pt.access].to_sym != :mta
+                # this is not mandatory - default is false
+                #ret << "allow_tracking_domain is required if profile_type.access is :mta." if h['allow_tracking_domain'].to_s.empty? && accesses[pt.access].to_sym == :mta
+
+                ret << "tracking_domain (#{h['tracking_domain']}) is allowed if profile_type.access is :mta only." if h['allow_tracking_domain'] && h['tracking_domain'] && accesses[pt.access].to_sym != :mta
+                ret << "tracking_domain (#{h['tracking_domain']}) is mandatory if allow_trackng_domain is activated." if h['allow_tracking_domain'] && h['tracking_domain'].to_s.empty?
+                ret << "tracking_domain (#{h['tracking_domain']}) must be a valid domain." if h['allow_tracking_domain'] && h['tracking_domain'] && !h['tracking_domain'].to_s.empty? && !h['tracking_domain'].to_s.domain?
+
+                ret << "tracking_protocol (#{h['tracking_protocol']}) is allowed if profile_type.access is :mta only." if h['allow_tracking_domain'] && h['tracking_protocol'] && accesses[pt.access].to_sym != :mta
+                ret << "tracking_protocol (#{h['tracking_protocol']}) is mandatory if allow_trackng_domain is activated." if h['allow_tracking_domain'] && h['tracking_protocol'].to_s.empty?
+                ret << "tracking_protocol must be http or https." if h['tracking_protocol'] && h['allow_tracking_domain'] && !['http', 'https'].include?(h['tracking_protocol'].to_s)
+
+                ret << "tracking_port (#{h['tracking_port']}) is allowed if profile_type.access is :mta only." if h['allow_tracking_domain'] && h['tracking_port'] && accesses[pt.access].to_sym != :mta
+                ret << "tracking_port (#{h['tracking_port']}) is mandatory if allow_trackng_domain is activated." if h['allow_tracking_domain'] && h['tracking_port'].to_i <= 0
+
+                # SMTP and IMAP configurations are allowed only if the access of the profile_type is :mta
+                ret << "smtp_address is allowed if profile_type.access is :mta only." if h['smtp_address'] && accesses[pt.access].to_sym != :mta
+                ret << "smtp_port is allowed if profile_type.access is :mta only." if h['smtp_port'] && accesses[pt.access].to_sym != :mta
+                ret << "imap_address is allowed if profile_type.access is :mta only." if h['imap_address'] && accesses[pt.access].to_sym != :mta
+                ret << "imap_port is allowed if profile_type.access is :mta only." if h['imap_port'] && accesses[pt.access].to_sym != :mta
+                ret << "authentication is allowed if profile_type.access is :mta only." if h['authentication'] && accesses[pt.access].to_sym != :mta
+                ret << "enable_starttls_auto is allowed if profile_type.access is :mta only." if h['enable_starttls_auto'] && accesses[pt.access].to_sym != :mta
+                ret << "openssl_verify_mode is allowed if profile_type.access is :mta only." if h['openssl_verify_mode'] && accesses[pt.access].to_sym != :mta
+                ret << "inbox_label is allowed if profile_type.access is :mta only." if !h['inbox_label'].to_s.empty? && accesses[pt.access].to_sym != :mta
+                ret << "spam_label is allowed if profile_type.access is :mta only." if !h['spam_label'].to_s.empty? && accesses[pt.access].to_sym != :mta
+                ret << "search_all_wildcard is allowed if profile_type.access is :mta only." if !h['search_all_wildcard'].to_s.empty? && accesses[pt.access].to_sym != :mta
+
+                ret << "imap_allowed is allowed if profile_type.access is :mta only." if h['imap_allowed'] && accesses[pt.access].to_sym != :mta
+                ret << "smtp_username is allowed if profile_type.access is :mta only." if h['smtp_username'] && accesses[pt.access].to_sym != :mta
+                ret << "smtp_password is allowed if profile_type.access is :mta only." if h['smtp_password'] && accesses[pt.access].to_sym != :mta
+                ret << "imap_username is allowed if profile_type.access is :mta only." if h['imap_username'] && accesses[pt.access].to_sym != :mta
+                ret << "imap_password is allowed if profile_type.access is :mta only." if h['imap_password'] && accesses[pt.access].to_sym != :mta
+
+                # SMTP and IMAP configurations are required if the access of the profile_type is :mta
+                #
+                # DEPRECATED: These values are taken from default values of the profile type
+                #
+                #ret << "smtp_address is required if profile_type.access is :mta." if h['smtp_address'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "smtp_port is required if profile_type.access is :mta." if h['smtp_port'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "imap_address is required if profile_type.access is :mta." if h['imap_address'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "imap_port is required if profile_type.access is :mta." if h['imap_port'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "authentication is required if profile_type.access is :mta." if h['authentication'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "enable_starttls_auto is required if profile_type.access is :mta." if h['enable_starttls_auto'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "openssl_verify_mode is required if profile_type.access is :mta." if h['openssl_verify_mode'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "inbox_label is required if profile_type.access is :mta." if h['inbox_label'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "spam_label is required if profile_type.access is :mta." if h['spam_label'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                #ret << "search_all_wildcard is required if profile_type.access is :mta." if h['search_all_wildcard'].to_s.empty? && accesses[pt.access].to_sym == :mta
+ 
+                ret << "smtp_username is required if profile_type.access is :mta." if h['smtp_username'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                ret << "smtp_password is required if profile_type.access is :mta." if h['smtp_password'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                ret << "imap_allowed is required if profile_type.access is :mta." if h['imap_allowed'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                ret << "imap_username is required if profile_type.access is :mta." if h['imap_username'].to_s.empty? && accesses[pt.access].to_sym == :mta
+                ret << "imap_password is required if profile_type.access is :mta." if h['imap_password'].to_s.empty? && accesses[pt.access].to_sym == :mta 
+
+                # if :access of profile_type (pt) is :mta, allowed values for :authentication are :plain, :login, :cram_md5
+                ret << "authentication must be one of #{self.authentications.join(', ')}" if h['authentication'] && self.accesses[pt.access] == :mta && !self.authentications.include?(h['authentication'].to_sym)
+
+                # if :access of profile_type (pt) is :mta, allowed values for :openssl_verify_mode are :none, :peer, :client_once, :fail_if_no_peer_cert
+                ret << "openssl_verify_mode must be one of #{self.openssl_verify_modes.join(', ')}" if h['openssl_verify_mode'] && self.accesses[pt.access] == :mta && !self.openssl_verify_modes.include?(h['openssl_verify_mode'].to_sym)
+            end
+
+            return ret
+        end # def self.errors
+
+        # If the ID is not nil, find a profile with the same ID.
+        # If no profile has been found so far, and if there is a value for the name and type attributes, find a profile by its name and type.
+        def self.find(h={})
+            o = nil
+
+            pt = ProfileType.where(:name => h['profile_type'].to_s, :id_account => h['id_account'], :delete_time => nil).first
+
+            if o.nil? && h['id']
+                o = self.where(:id_account => h['id_account'], :id => h['id'], :delete_time => nil).first
+            end
+
+            # This is deprecated, because you may want to submit multiple gsuite sending accounts, all with the same sender name.
+            #
+            #if o.nil? && !h['name'].to_s.empty? && pt
+            #    o = self.where(:id_account => h['id_account'], :name => h['name'].to_s.superstrip, :id_profile_type => pt.id, :delete_time => nil).first
+            #end
+
+            # if o.nil?, and if the access of the profiletype is :api, look for a profile with the same api_key 
+            if o.nil? && pt && pt.class.accesses[pt.access] == :api
+                o = self.where(:id_account => h['id_account'], :api_key => h['api_key'].to_s, :delete_time => nil).first
+            end
+
+            # if o.nil?, and if the access of the profiletype is :mta, look for a profile with the same smtp_username
+            if o.nil? && pt && pt.class.accesses[pt.access] == :mta
+                o = self.where(:id_account => h['id_account'], :smtp_username => h['smtp_username'].to_s, :delete_time => nil).first
+            end
+
+            # if o.nil?, and if the access of the profiletype is :rpa, look for a profile with the same ads_power_id
+            if o.nil? && pt && pt.class.accesses[pt.access] == :rpa
+                o = self.where(:id_account => h['id_account'], :ads_power_id => h['ads_power_id'].to_s, :delete_time => nil).first
+            end
+
+            return o
+        end # def self.find
+
+        # insert or update a record
+        # return the object
+        def update(h={}, upsert_children: true)
+            b = upsert_children
+            o = base_update(h, upsert_children: b)
+
+            pt = ProfileType.where(:name => h['profile_type'].to_s, :id_account => h['id_account'], :delete_time => nil).first
+
+            o.name = h['name'] if h.has_key?('name')
+            
+            if h.has_key?('profile_type')
+                pt = Mass::ProfileType.where(:name => h['profile_type'].to_s, :id_account => h['id_account'], :delete_time => nil).first
+                o.id_profile_type = pt.id 
+            end
+
+            o.id_tag = h['tag'].nil? ? nil : Mass::Tag.where(:name => h['tag'].to_s, :id_account => h['id_account'], :delete_time => nil).first.id if h.has_key?('tag')
+            o.state = self.class.state_code(h['state']) if h.has_key?('state')
+            o.hostname = h['hostname'] if h['hostname'] if h.has_key?('hostname')
+            
+            o.ads_power_id = h['ads_power_id'] if h.has_key?('ads_power_id')
+            
+            o.api_key = h['api_key'] if h.has_key?('api_key')
+
+            # if mta parameters are defined in the hash descriptor, map it to the profile
+            o.allow_tracking_domain = h['allow_tracking_domain'] if h.has_key?('allow_tracking_domain')
+            o.tracking_domain = h['tracking_domain'] if h.has_key?('tracking_domain')
+            o.tracking_protocol = h['tracking_protocol'] if h.has_key?('tracking_protocol')
+            o.tracking_port = h['tracking_port'] if h.has_key?('tracking_port')
+
+            o.smtp_address = h['smtp_address'] || pt.default_smtp_address
+            o.smtp_port = h['smtp_port'] || pt.default_smtp_port
+            o.imap_address = h['imap_address'] || pt.default_imap_address
+            o.imap_port = h['imap_port'] || pt.default_imap_port
+            o.authentication = h['authentication'].nil? ? pt.default_authentication : self.class.authentication_code(h['authentication'])
+            o.enable_starttls_auto = h['enable_starttls_auto']  || pt.default_enable_starttls_auto
+            o.openssl_verify_mode = h['openssl_verify_mode'].nil? ? pt.default_openssl_verify_mode : self.class.openssl_verify_mode_code(h['openssl_verify_mode'])
+            o.inbox_label = h['inbox_label'] || pt.default_inbox_label
+            o.spam_label = h['spam_label'] || pt.default_spam_label
+            o.search_all_wildcard = h['search_all_wildcard'] || pt.default_search_all_wildcard
+
+            o.smtp_username = h['smtp_username'] if h.has_key?('smtp_username')
+            o.smtp_password = h['smtp_password'] if h.has_key?('smtp_password')
+            o.imap_username = h['imap_username'] if h.has_key?('imap_username')
+            o.imap_password = h['imap_password'] if h.has_key?('imap_password')
+            o.imap_allowed = h['imap_allowed'] if h.has_key?('imap_allowed')
+            o.imap_inbox_last_id = h['imap_inbox_last_id'] if h.has_key?('imap_inbox_last_id')
+            o.imap_spam_last_id = h['imap_spam_last_id'] if h.has_key?('imap_spam_last_id')
+
+            # if quota is defined in the hash descriptor, map it to the profile
+            o.check_inbox_interval = h['check_inbox_interval'] if h.has_key?('check_inbox_interval')
+            o.check_connections_interval = h['check_connections_interval'] if h.has_key?('check_connections_interval')
+
+            o.jobs_interval = h['jobs_interval'] if h.has_key?('jobs_interval')
+            o.max_daily_jobs = h['max_daily_jobs'] if h.has_key?('max_daily_jobs')
+
+            o.outreach_interval = h['outreach_interval'] if h.has_key?('outreach_interval')
+            o.max_daily_processed_outreaches = h['max_daily_processed_outreaches'] if h.has_key?('max_daily_processed_outreaches')
+            o.max_daily_aborted_outreaches = h['max_daily_aborted_outreaches'] if h.has_key?('max_daily_aborted_outreaches')
+
+            o.enrichment_interval = h['enrichment_interval'] if h.has_key?('enrichment_interval')
+            o.max_daily_processed_enrichments = h['max_daily_processed_enrichments'] if h.has_key?('max_daily_processed_enrichments')
+            o.max_daily_aborted_enrichments = h['max_daily_aborted_enrichments'] if h.has_key?('max_daily_aborted_enrichments')
+
+            # if quota is not defined in the hash descriptor and if the current value is nil, map the default value of the profile_type (pt)
+            o.check_connections_interval = pt.default_check_connections_interval if h['check_connections_interval'].nil? && o.check_connections_interval.nil?
+            o.check_inbox_interval = pt.default_check_inbox_interval if h['check_inbox_interval'].nil? && o.check_inbox_interval.nil?
+
+            o.jobs_interval = pt.default_jobs_interval if h['jobs_interval'].nil? && o.jobs_interval.nil?
+            o.max_daily_jobs = pt.default_max_daily_jobs if h['max_daily_jobs'].nil? && o.max_daily_jobs.nil?
+
+            o.outreach_interval = pt.default_outreach_interval if h['outreach_interval'].nil? && o.outreach_interval.nil?
+            o.max_daily_processed_outreaches = pt.default_max_daily_processed_outreaches if h['max_daily_processed_outreaches'].nil? && o.max_daily_processed_outreaches.nil?
+            o.max_daily_aborted_outreaches = pt.default_max_daily_aborted_outreaches if h['max_daily_aborted_outreaches'].nil? && o.max_daily_aborted_outreaches.nil?
+
+            o.enrichment_interval = pt.default_enrichment_interval if h['enrichment_interval'].nil? && o.enrichment_interval.nil?
+            o.max_daily_processed_enrichments = pt.default_max_daily_processed_enrichments if h['max_daily_processed_enrichments'].nil? && o.max_daily_processed_enrichments.nil?
+            o.max_daily_aborted_enrichments = pt.default_max_daily_aborted_enrichments if h['max_daily_aborted_enrichments'].nil? && o.max_daily_aborted_enrichments.nil?
+
+            # profile picture
+            # manage buffering in order to don't overload the storage
+            if h.has_key?('picture_url')
+                if o.picture_url.to_s != h['picture_url'].to_s
+                    o.picture_url = h['picture_url']
+                    o.picture_url_dropbox = self.class.store(
+                        url: h['picture_url'], 
+                        filename: "#{o.id}.#{guid}.png", 
+                        dropbox_folder: "profile_pictures/#{h['id_account']}",
+                        downloadeable: false
+                    )
+                end
+            else
+                o.picture_url_dropbox = h['picture_url_dropbox'] if h.has_key?('picture_url_dropbox')
+            end
+
+            o.allow_browser_to_download_multiple_files = h['allow_browser_to_download_multiple_files'] if h.has_key?('allow_browser_to_download_multiple_files')
+            o.browser_width = h['browser_width'] if h.has_key?('browser_width')
+            o.browser_height = h['browser_height'] if h.has_key?('browser_height')
+
+            o.facebook = h['facebook'] if h.has_key?('facebook')
+            o.linkedin = h['linkedin'] if h.has_key?('linkedin')
+            
+            # even if this field is in the database, the end-user cannot set this flag.
+            # solution: The API works for activating, but not for removing such a flag.
+            # reference: https://github.com/MassProspecting/docs/issues/175
+            #
+            o.leased = h['leased'] if h.has_key?('leased') && h['leased'] == true
+
+            o.save
+            return o
+        end # def update
+
+        # return the hash descriptor of the channel
+        def to_h
+            ret = self.to_h_base
+            ret['name'] = self.name if !self.name.nil?
+            ret['profile_type'] = self.profile_type.name.to_sym if !self.profile_type.nil?
+            ret['tag'] = self.tag.nil? ? nil : self.tag.name.to_sym if !self.tag.nil?
+            ret['hostname'] = self.hostname if !self.hostname.nil?
+            ret['state'] = self.class.states[self.state] if !self.state.nil?
+            
+            if self.class.accesses[self.profile_type.access] == :rpa
+                ret['allow_browser_to_download_multiple_files'] = self.allow_browser_to_download_multiple_files if !self.allow_browser_to_download_multiple_files.nil?
+                ret['browser_width'] = self.browser_width if !self.browser_width.nil?
+                ret['browser_height'] = self.browser_height if !self.browser_height.nil?    
+                ret['ads_power_id'] = self.ads_power_id if !self.ads_power_id.nil? && self.class.accesses[self.profile_type.access] == :rpa
+            end
+
+            if self.class.accesses[self.profile_type.access] == :api            
+                ret['api_key'] = self.api_key if !self.api_key.nil? && self.class.accesses[self.profile_type.access] == :api
+            end
+            
+            if self.class.accesses[self.profile_type.access] == :mta
+                ret['allow_tracking_domain'] = self.allow_tracking_domain if !self.allow_tracking_domain.nil?
+                ret['tracking_domain'] = self.tracking_domain if !self.tracking_domain.nil?
+                ret['tracking_protocol'] = self.tracking_protocol if !self.tracking_protocol.nil?
+                ret['tracking_port'] = self.tracking_port if !self.tracking_port.nil? 
+                ret['smtp_address'] = self.smtp_address if !self.smtp_address.nil?
+                ret['smtp_port'] = self.smtp_port if !self.smtp_port.nil?
+                ret['imap_port'] = self.imap_port if !self.imap_port.nil?
+                ret['imap_address'] = self.imap_address if !self.imap_address.nil?
+                ret['authentication'] = self.class.authentications[self.authentication] if !self.authentication.nil?
+                ret['enable_starttls_auto'] = self.enable_starttls_auto if !self.enable_starttls_auto.nil?
+                ret['openssl_verify_mode'] = self.class.openssl_verify_modes[self.openssl_verify_mode] if !self.openssl_verify_mode.nil?
+                ret['openssl_verify_mode_code'] = self.openssl_verify_mode
+                ret['inbox_label'] = self.inbox_label if !self.inbox_label.nil?
+                ret['spam_label'] = self.spam_label if !self.spam_label.nil?
+                ret['search_all_wildcard'] = self.search_all_wildcard if !self.search_all_wildcard.nil?
+                ret['smtp_username'] = self.smtp_username if !self.smtp_username.nil?
+                ret['smtp_password'] = self.smtp_password if !self.smtp_password.nil?
+                ret['imap_username'] = self.imap_username if !self.imap_username.nil?
+                ret['imap_password'] = self.imap_password if !self.imap_password.nil?
+                ret['imap_allowed'] = self.imap_allowed if !self.imap_allowed.nil?
+                ret['imap_inbox_last_id'] = self.imap_inbox_last_id if !self.imap_inbox_last_id.nil?
+                ret['imap_spam_last_id'] = self.imap_spam_last_id if !self.imap_spam_last_id.nil?
+            end
+
+            ret['check_connections_interval'] = self.check_connections_interval if !self.check_connections_interval.nil?
+            ret['check_inbox_interval'] = self.check_inbox_interval if !self.check_inbox_interval.nil?
+            ret['jobs_interval'] = self.jobs_interval if !self.jobs_interval.nil?
+            ret['max_daily_jobs'] = self.max_daily_jobs if !self.max_daily_jobs.nil?
+            ret['outreach_interval'] = self.outreach_interval if !self.outreach_interval.nil?
+            ret['max_daily_processed_outreaches'] = self.max_daily_processed_outreaches if !self.max_daily_processed_outreaches.nil?
+            ret['max_daily_aborted_outreaches'] = self.max_daily_aborted_outreaches if !self.max_daily_aborted_outreaches.nil?
+            ret['enrichment_interval'] = self.enrichment_interval if !self.enrichment_interval.nil?
+            ret['max_daily_processed_enrichments'] = self.max_daily_processed_enrichments if !self.max_daily_processed_enrichments.nil?
+            ret['max_daily_aborted_enrichments'] = self.max_daily_aborted_enrichments if !self.max_daily_aborted_enrichments.nil?
+            
+            # Disable it, because I don't want to check if `picture_url` is reachable in a further update.
+            # reference: https://github.com/MassProspecting/docs/issues/157
+            #ret['picture_url'] = self.picture_url if !self.picture_url.nil?
+            
+            ret['picture_url_dropbox'] = self.picture_url_dropbox if !self.picture_url_dropbox.nil?
+            
+            ret['profile_type_desc'] = self.profile_type.to_h if !self.profile_type.nil?
+
+            ret['linkedin'] = self.linkedin if self.linkedin
+            ret['facebook'] = self.facebook if self.facebook
+            ret['leased'] = self.leased
+            ret['under_revision'] = self.under_revision
+
+            return ret
+        end
+
+    end # class Profile
+end # module Mass
+```
+
+
