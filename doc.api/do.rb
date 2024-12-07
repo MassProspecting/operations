@@ -64,6 +64,59 @@ puts 'done'.green
 # GPT model to use
 MODEL = 'gpt-4o'
 
+# List of allowed channels.
+# TODO: Bring this from database.
+CHANNELS = [
+  "Apollo",
+  "Facebook",
+  "FindyMail",
+  "GMail",
+  "Indeed",
+  "LinkedIn",
+  "Postmark",
+  "Reoon",
+  "Targetron",
+  "ZeroBounce",
+]
+
+# List of allowed profile_types.
+# TODO: Bring this from database.
+PROFILE_TYPES = [
+  "Apollo_API",
+  "Apollo_RPA",
+  "Facebook",
+  "FindyMail",
+  "GMail",
+  "Indeed",
+  "LinkedIn",
+  "Postmark",
+  "Reoon",
+  "Targetron_API",
+  "Targetron_RPA",
+  "ZeroBounce",
+]
+
+# List of allowed outreach_types.
+# TODO: Bring this from database.
+OUTREACH_TYPES = [
+  "Facebook_DirectMessage",
+  "Facebook_FriendRequest",
+  "GMail_DirectMessage",
+  "LinkedIn_ConnectionRequest",
+  "LinkedIn_DirectMessage",
+  "Postmark_DirectMessage",
+]
+
+# List of allowed enrichment_types.
+# TODO: Bring this from database.
+ENRICHMENT_TYPES = [
+  "ApolloRPA_CompanyDomainToLeads",
+  "ApolloRPA_NameAndLinkedInUrlToEmail",
+  "FindyMailAPI_NameAndDomainToEmail",
+  "Reoon_EmailVerification",
+  "ZeroBounce_EmailVerification",
+]
+
 # Instrusctions to initialize a GPT agent.
 INSTRUCTIONS = "
 Your name is Manolito and your work is to help me write the API documentation of our SaaS called MassProspecting.
@@ -313,18 +366,29 @@ I will provide the source code of the modules included or extended by such a cla
 
 Each document must have the following stucture:
 
+A 3-line abstract of what the class is about.
 1. Insert: 
   Required fields,
   optional fields, 
   validations, 
-  list of allowed values, 
+  full list of allowed values of each field:
+  - don't refer to values that should be registered in the datable, but use the values here in this message,
+  - the allowed values of channels are: #{CHANNELS.join('", "')};
+  - the allowed values of profile_types are: #{PROFILE_TYPES.join('", "')};
+  - the allowed values of outreach_types are: #{OUTREACH_TYPES.join('", "')};
+  - the allowed values of enrichment_types are: #{ENRICHMENT_TYPES.join('", "')};
   examples. 
   Refer to the source code of `ajax/:class/insert.json` and the source code of the class that I will provide.
 2. Page: 
   Required fields, 
   optional fields, 
   validations, 
-  list of allowed values, 
+  full list of allowed values of each field:
+  - don't refer to values that should be registered in the datable, but use the values here in this message,
+  - the allowed values of channels are: #{CHANNELS.join('", "')};
+  - the allowed values of profile_types are: #{PROFILE_TYPES.join('", "')};
+  - the allowed values of outreach_types are: #{OUTREACH_TYPES.join('", "')};
+  - the allowed values of enrichment_types are: #{ENRICHMENT_TYPES.join('", "')};
   examples. 
   Refer to the source code of `ajax/:class/page.json` and the source code of the class that I will provide.
   Don't forget to include parameters `order` and `asc` into the call to `page.json`.
@@ -332,7 +396,12 @@ Each document must have the following stucture:
   Required fields, 
   optional fields, 
   validations, 
-  list of allowed values, 
+  full list of allowed values of each field:
+  - don't refer to values that should be registered in the datable, but use the values here in this message,
+  - the allowed values of channels are: #{CHANNELS.join('", "')};
+  - the allowed values of profile_types are: #{PROFILE_TYPES.join('", "')};
+  - the allowed values of outreach_types are: #{OUTREACH_TYPES.join('", "')};
+  - the allowed values of enrichment_types are: #{ENRICHMENT_TYPES.join('", "')};
   example.
 
 First title must be header-1.
@@ -350,61 +419,8 @@ Please check carefully the list of allowed values before you write them.
 Please check carefully the list of validations before you write them.
 Please check carefully the list of fields before you write them.
 
-Reply with just the source code so I can pipe it as an output to a `.md` file.
+Reply with just the source code so I can pipe it as an output to a `.md` file, and don't write it between ``` brackets.
 "
-
-# List of allowed channels.
-# TODO: Bring this from database.
-CHANNELS = [
-  "Apollo",
-  "Facebook",
-  "FindyMail",
-  "GMail",
-  "Indeed",
-  "LinkedIn",
-  "Postmark",
-  "Reoon",
-  "Targetron",
-  "ZeroBounce",
-]
-
-# List of allowed profile_types.
-# TODO: Bring this from database.
-PROFILE_TYPES = [
-  "Apollo_API",
-  "Apollo_RPA",
-  "Facebook",
-  "FindyMail",
-  "GMail",
-  "Indeed",
-  "LinkedIn",
-  "Postmark",
-  "Reoon",
-  "Targetron_API",
-  "Targetron_RPA",
-  "ZeroBounce",
-]
-
-# List of allowed outreach_types.
-# TODO: Bring this from database.
-OUTREACH_TYPES = [
-  "Facebook_DirectMessage",
-  "Facebook_FriendRequest",
-  "GMail_DirectMessage",
-  "LinkedIn_ConnectionRequest",
-  "LinkedIn_DirectMessage",
-  "Postmark_DirectMessage",
-]
-
-# List of allowed enrichment_types.
-# TODO: Bring this from database.
-ENRICHMENT_TYPES = [
-  "ApolloRPA_CompanyDomainToLeads",
-  "ApolloRPA_NameAndLinkedInUrlToEmail",
-  "FindyMailAPI_NameAndDomainToEmail",
-  "Reoon_EmailVerification",
-  "ZeroBounce_EmailVerification",
-]
 
 # Classes to write API documentation
 classes = [
@@ -446,17 +462,6 @@ classes = [
 
   Mass::Rule,
 ]
-
-# Initialize the conversation with the system prompt
-@messages = []
-@messages << { 
-  role: 'user', 
-  content: INSTRUCTIONS 
-}
-
-# OpenAI client
-@gpt = OpenAI::Client.new(access_token: OPENAI_API_KEY)
-
 
 # helper function
 def get_method_source(method_object)
@@ -572,45 +577,59 @@ end
 # helper function
 # get response from GPT
 def response(s)
-  @messages << { 
+  # Initialize the conversation with the system prompt
+  message = []
+  message << { 
+    role: 'user', 
+    content: INSTRUCTIONS 
+  }
+
+  # OpenAI client
+  gpt = OpenAI::Client.new(access_token: OPENAI_API_KEY)
+
+  message << { 
     role: 'user', 
     content: s, # prompt 
   }
   
-  response = @gpt.chat(
+  response = gpt.chat(
     parameters: {
       model: MODEL,
-      messages: @messages,
+      messages: message,
       #functions: functions,
       #function_call: "auto",  # Let the assistant decide when to call a function
     }
   )
   
   message = response['choices'][0]['message']['content']
-  @messages << message
+  message << message
   
   message
 end  
 
-#response = @gpt.models.list
+#response = gpt.models.list
 #models = response['data'].map { |model| model['id'] }
 #puts models
 #exit(0)
 
 classes.each_with_index { |cls, i|
   filename = "#{(i+2).to_s.rjust(2,'0')}-#{cls.name.split('::').last.downcase}.md"
-  print "#{filename}... "
-  # generate prompt
-  s = prompt(cls, filename)
-  # get the response
-  r = response(s)
   # Expand the home directory and construct the full path
   file_path = File.expand_path("~/Downloads/#{filename}")
-  # Create or overwrite the file with the content of `s`
-  File.open(file_path, "w") do |file|
-    file.write(r)
+  print "#{filename}... "
+  if File.exists?(file_path)
+    puts 'skip'.yellow
+  else
+    # generate prompt
+    s = prompt(cls, filename)
+    # get the response
+    r = response(s)
+    # Create or overwrite the file with the content of `s`
+    File.open(file_path, "w") do |file|
+      file.write(r)
+    end
+    puts 'done'.green
   end
-  puts 'done'.green
-break
+break if i>=5
 }
 
