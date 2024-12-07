@@ -628,6 +628,7 @@ classes.each_with_index { |cls, i|
     File.open(file_path, "w") do |file|
       file.write(r)
     end
+    sleep(1) # OpenAI API Rate-Limit
     puts 'done'.green
   end
 break if i>=5
