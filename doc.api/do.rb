@@ -312,7 +312,7 @@ I will provide the source code of each one of the classes, and I'll need you to 
 I will provide the source code of the modules included or extended by such a class.
 
 Each document must have the following stucture:
-d
+
 1. Insert: 
   Required fields,
   optional fields, 
@@ -340,12 +340,9 @@ Each title listed above must be header-2.
 
 Never include the `id_account` key in the requests, such key is added by the access point listeners.
 
-Always provide a downloadable markdown file.
-
 Please check carefully the list of allowed values before you write them.
 Please check carefully the list of validations before you write them.
 Please check carefully the list of fields before you write them.
-
 
 When I provide the source code of the class to write documentation, reivew the source code of all the modules listed in the class definition before start writing documentation.
 
@@ -353,7 +350,7 @@ Please check carefully the list of allowed values before you write them.
 Please check carefully the list of validations before you write them.
 Please check carefully the list of fields before you write them.
 
-
+Reply with just the source code so I can pipe it as an output to a `.md` file.
 "
 
 # List of allowed channels.
