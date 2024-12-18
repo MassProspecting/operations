@@ -376,3 +376,15 @@ sudo systemctl restart postgresql
 - Use [this prompt](./gpt-demo-html-generation.txt) to show more features in the demo page.
 
 - Always use `gpt-4o` model.
+
+## 4. Timeline Reprocessing
+
+```sql
+truncate table timeline;
+update job set summarize_creation_to_timeline=null, summarize_status_to_timeline=null;
+update enrichment set summarize_creation_to_timeline=null, summarize_status_to_timeline=null;
+update outreach set summarize_creation_to_timeline=null, summarize_status_to_timeline=null;
+update click set summarize_creation_to_timeline=null;
+update unsubscribe set summarize_creation_to_timeline=null;
+update "open" set summarize_creation_to_timeline=null;
+```
