@@ -68,6 +68,40 @@ sudo systemctl restart postgresql
 
 - Always use `gpt-4o` model.
 
+## 3. Subaccounts and Profiles Re-Allocation
+
+```sql
+-- request all submaccounts to be re-allocated
+UPDATE subaccount SET allocation_success=null WHERE allocation_success IS NOT NULL;
+```
+
+```sql
+-- request all profiles to be re-allocated
+INSERT INTO allocation (
+    id,
+    id_account,
+    id_user,
+    create_time,
+    id_profile,
+    id_subaccount_remove_from,
+    id_subaccount_add_to
+)
+SELECT
+    uuid_generate_v4(),       -- Generates a unique GUID for the `id` field
+    s.id_account,		      -- This request is owned by the owner of the subaccount.
+    NULL,           		  -- No user has requested this re-allocation.
+    CURRENT_TIMESTAMP,		  -- Sets the current timestamp for `create_time`
+    p.id,                     -- Maps `profile.id` to `id_profile`
+    NULL,                     -- Sets `id_subaccount_remove_from` to NULL
+    p.id_subaccount           -- Maps `profile.id_subaccount` to `id_subaccount_add_to`
+FROM
+    profile p
+    join "subaccount" s on s.id=p.id_subaccount
+WHERE
+    p.delete_time IS NULL
+    AND p.id_subaccount IS NOT NULL;
+```
+
 ## 4. Timeline Reprocessing
 
 ```sql
