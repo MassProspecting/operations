@@ -106,6 +106,8 @@ WHERE
 
 ### Jobs Reprocessing
 
+After deploying a fix-patch, you should restart all the failed jobs.
+
 ```sql
 update "job" set status=0 where status=3; 
 update "enrichment" set status=0 where status=3; 
@@ -114,7 +116,21 @@ update "inboxcheck" set status=0 where status=3;
 update "connectioncheck" set status=0 where status=3; 
 ```
 
+### Jobs Restarting
+
+If you shuted down servers, many jobs may have been interrupted while they were running.
+
+```
+update job set status=0 where status=1;
+update inboxcheck set status=0 where status=1;
+update connectioncheck set status=0 where status=1;
+update enrichment set status=0 where status=1;
+update outreach set status=0 where status=1;
+```
+
 ### Timeline Reprocessing
+
+After restarting jobs, you should reprocess the timeline.
 
 ```sql
 truncate table timeline;
