@@ -120,7 +120,7 @@ update "connectioncheck" set status=0 where status=3;
 
 If you shuted down servers, many jobs may have been interrupted while they were running.
 
-```
+```sql
 update job set status=0 where status=1;
 update inboxcheck set status=0 where status=1;
 update connectioncheck set status=0 where status=1;
