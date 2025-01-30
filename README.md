@@ -102,7 +102,19 @@ WHERE
     AND p.id_subaccount IS NOT NULL;
 ```
 
-## 4. Timeline Reprocessing
+## 4. Reprocessing
+
+### Jobs Reprocessing
+
+```sql
+update "job" set status=0 where status=3; 
+update "enrichment" set status=0 where status=3; 
+update "outreach" set status=0 where status=3; 
+update "inboxcheck" set status=0 where status=3; 
+update "connectioncheck" set status=0 where status=3; 
+```
+
+### Timeline Reprocessing
 
 ```sql
 truncate table timeline;
