@@ -141,3 +141,14 @@ update click set summarize_creation_to_timeline=null;
 update unsubscribe set summarize_creation_to_timeline=null;
 update "open" set summarize_creation_to_timeline=null;
 ```
+
+## 5. Get Report of Nodes Occupancy
+
+```sql
+select p.hostname, t.access, count(p.id)
+from "profile" p
+join "profile_type" t on t.id=p.id_profile_type
+where p.delete_time is null
+group by p.hostname, t.access
+order by p.hostname, t.access
+```
