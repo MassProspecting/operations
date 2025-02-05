@@ -167,4 +167,6 @@ CSV must has only 3 columns: first name, last name, linkediun url
 Remove text like "view Pujs's profile" snf ptobifr s nre CSV.
 
 Remove any text after colon (,) into the last name (example: if it is "Harris, MBA", then the last name is only "Harris")
+
+Skip the rows with first name "LinkedIn".
 ```
