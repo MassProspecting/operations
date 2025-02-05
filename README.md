@@ -152,3 +152,19 @@ where p.delete_time is null
 group by p.hostname, t.access
 order by p.hostname, t.access
 ```
+
+## 6. Downalod HTYML and Extract Leads with GPT
+
+Using GPT-4o (unexpensive), you can parse a batch of HTML files and the prompt below:
+
+```
+Please provide a new CSV file by parsing these 5 new HTML files.
+
+The name of the file must be ''Challenges of Launching Disruptive Tech in BIG Companies - 7-11.csv".
+
+CSV must has only 3 columns: first name, last name, linkediun url
+
+Remove text like "view Pujs's profile" snf ptobifr s nre CSV.
+
+Remove any text after colon (,) into the last name (example: if it is "Harris, MBA", then the last name is only "Harris")
+```
