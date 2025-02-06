@@ -155,18 +155,22 @@ order by p.hostname, t.access
 
 ## 6. Downalod HTYML and Extract Leads with GPT
 
-Using GPT-4o (unexpensive), you can parse a batch of HTML files and the prompt below:
+Download result pages of LinkedIn free search, and parse them using `attendees.rb`.
 
+## 7. Check if Emails Have Been Delivered
+
+Get emails delivered by profiles using this query:
+
+```sql
+select l.first_name, l.last_name, l.email, l.email_verification_result, o.done_time, o.body
+from "rule" r
+join rule_instance i on r.id=i.id_rule
+join outreach o on i.id=o.id_rule_instance
+join lead l on l.id=o.id_lead
+where r.name='optimally-b-6'
+and o.status=2
+--and o.body ilike '%B2%'
+order by l.first_name, l.last_name --l.email_verification_result
 ```
-Please provide a new CSV file by parsing these 5 new HTML files.
 
-The name of the file must be ''Challenges of Launching Disruptive Tech in BIG Companies - 7-11.csv".
-
-CSV must has only 3 columns: first name, last name, linkediun url
-
-Remove text like "view Pujs's profile" snf ptobifr s nre CSV.
-
-Remove any text after colon (,) into the last name (example: if it is "Harris, MBA", then the last name is only "Harris")
-
-Skip the rows with first name "LinkedIn".
-```
+Run `imap.rb` to find such email in the real outbox of the profile.
