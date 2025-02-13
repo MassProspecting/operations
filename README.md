@@ -2,6 +2,12 @@
 
 ## 1. BackUps
 
+Before starting, switch to the user `blackstack` in your environment:
+
+```
+su - blackstack
+```
+
 ### 1.1. BackUp Production Database
 
 You can create a backup of a production database from your local computer.
