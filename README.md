@@ -225,6 +225,7 @@ left join outreach response on (
 	response.direction = 1 -- incoming
 )
 --where r.id='b44bf664-347c-46aa-bf2b-5a49252874e9'
-group by l.first_name, l.last_name
+group by r.name, l.first_name, l.last_name
+having count(response.id) > 0
 order by count(response.id) desc
 ```
