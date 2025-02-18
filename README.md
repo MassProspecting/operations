@@ -180,3 +180,51 @@ order by l.first_name, l.last_name --l.email_verification_result
 ```
 
 Run `imap.rb` to find such email in the real outbox of the profile.
+
+## 8. Reports
+
+### 8.1. Clickers
+
+```sql
+select k.url, l.first_name, l.last_name
+from "click" c
+join "link" k on k.id=c.id_link
+join "outreach" o on o.id=c.id_outreach
+join "lead" l on l.id=o.id_lead
+order by k.create_time desc
+```
+
+### 8.2. Openers
+
+```sql
+select l.email, l.first_name, l.last_name, count(*)
+from "open" c
+join "outreach" o on o.id=c.id_outreach
+join "lead" l on l.id=o.id_lead
+group by l.email, l.first_name, l.last_name
+order by l.email
+```
+
+### 8.3. Unsubscribers
+
+```sql
+select * from "unsubscribe"
+```
+
+### 8.4. Repliers
+
+```sql
+SELECT r.name, l.first_name, l.last_name, count(response.id)
+from "rule" r
+join "action" a on a.id=r.id_action
+join "outreach" o on a.id=o.id_action
+join "lead" l on l.id=o.id_lead
+left join outreach response on (
+	response.id_lead=o.id_lead and
+	response.id_profile=o.id_profile and
+	response.direction = 1 -- incoming
+)
+--where r.id='b44bf664-347c-46aa-bf2b-5a49252874e9'
+group by l.first_name, l.last_name
+order by count(response.id) desc
+```
