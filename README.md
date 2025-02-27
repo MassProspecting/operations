@@ -13,7 +13,9 @@ su - blackstack
 You can create a backup of a production database from your local computer.
 
 ```
-pg_dump -h s01.massprospecting.com -p 5432 -U blackstack -W blackstack > backup.sql
+TIMESTAMP=$(date +"%Y%m%d.%H%M") && \
+pg_dump -h massprospecting.com -p 5432 -U blackstack -W blackstack | tee master.$TIMESTAMP.sql && \
+pg_dump -h free01.massprospecting.com -p 5432 -U blackstack -W blackstack | tee free01.$TIMESTAMP.sql
 ```
 
 ### 1.2. Restoring Database in Your Local Environment
