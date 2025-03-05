@@ -163,7 +163,7 @@ order by p.hostname, t.access
 
 ## 6. Downalod HTYML and Extract Leads with GPT
 
-Download result pages of LinkedIn free search, and parse them using `attendees.rb`.
+Download result pages of LinkedIn free search, and parse them using [`attendees.rb`](./assets/scripts/attendees.rb).
 
 ## 7. Check if Emails Have Been Delivered
 
@@ -181,7 +181,7 @@ and o.status=2
 order by l.first_name, l.last_name --l.email_verification_result
 ```
 
-Run `imap.rb` to find such email in the real outbox of the profile.
+Run [`imap.rb`](./assets/scripts/imap.rb) to find such email in the real outbox of the profile.
 
 ## 8. Reports
 
@@ -231,3 +231,19 @@ group by r.name, l.first_name, l.last_name
 having count(response.id) > 0
 order by count(response.id) desc
 ```
+
+## 9. Fix Facebook PIN Issue
+
+Sometimes, the **Check Inbox** of Facebook profiles fails with this error message: `element click intercepted`, and a screenshot like below:
+
+![Facebook PIN issue](./assets/images/facebook-pin-issue.png).
+
+Accessing the profile manually doesn't have such a problem, but running the profile in headliness mode in production raises that error.
+
+Here are the steps to fix this glitch:
+
+1. Stop the profile in production.
+2. In your local computer, open the profile manually, access the inbox, and enter the PIN if it is required.
+3. In the same local computer, run the `inboxcheck` command in headless model.
+
+After this, you can start again the profile in production, and the issue may be fixed.
