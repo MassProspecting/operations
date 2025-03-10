@@ -1,3 +1,44 @@
+## OPERATIONS
+
+1. hire leasers
+2. hire mtas: get phone numbers for app password generation, 
+3. developers payments management
+4. proxies payments management
+5. leasers payments management
+6. mta payments management: gsuite, postmark
+7. customer support FAQs
+8. balance mensual
+9. planificacion de recursos: decidir si comprar o no mtas y rpas
+10. allocacion y desalocacion de recursos a un cliente
+11. workflow setup to a client: guarantee finding accurate results enough
+
+## ENGINEERING
+
+1. hire developers
+2. train developers
+3. write requirements to developers
+4. check browser leaks
+5. check mta blacklisting: gsuite, postmark
+6. monitor nodes performance: memory, CPU, disk, postgres
+7. check processing glitches: jobs status, logs, requests, rule_instances
+8. fix glitches
+9. backup production databases
+10. split move subaccount
+11. drain subaccount
+12. upgrade worker nodes
+13. upgrade master/slave nodes
+
+## SALES
+
+1. followup leads
+2. content: script, video production, publication yt, tt, facebook, bhw, reddit
+3. cold messaging
+4. email marketing
+
+---
+
+_This is the old documentation_
+
 # Operations
 
 ## 1. BackUps
